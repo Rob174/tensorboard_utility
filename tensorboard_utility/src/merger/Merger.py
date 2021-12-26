@@ -2,6 +2,8 @@ from enum import Enum
 from pathlib import Path
 
 import sys
+
+from numpy.lib.arraysetops import isin
 sys.path.append(str(Path(".").resolve().parent))
 sys.path.append(str(Path(".").resolve()))
 import glob
@@ -22,21 +24,24 @@ import tensorflow as tf
 from pathlib import Path
 
 
-def merger(folder_pattern: str, destination_folder: str, reference_folder : Union[str,int] = -1, clean: bool = False):
+def merger(folder_pattern: str, destination_folder: Optional[str] = None, reference_folder : Union[str,int] = -1, clean: str = "none"):
     """
-    Merges all the tensorboard files in the folder_pattern into one file.
+    Merges all the tensorboard files in the folder_pattern into one file. The folder must be free of use (no tensorboard hook on folders)
     :param folder_pattern: The folder pattern to search for tensorboard files.
-    :param clean: If True, will delete the merged files.
+    :param clean: If delete, will delete the merged files.
     :return: None
     """
 
     if not folder_pattern.endswith('/'):
         folder_pattern += '/'
-    if not destination_folder.endswith('/'):
-        destination_folder += '/'
-        
+    
     # Get all the tensorboard files
     runs_folders = glob.glob(folder_pattern, recursive=False)
+    if destination_folder is None:
+        destination_folder = runs_folders[-1]+"_merged/"
+    if isinstance(destination_folder,str) and not destination_folder.endswith('/'):
+        destination_folder += '/'
+        
     original_location = Path(os.getcwd())
     description_parser = DescriptionParser()
     metric_accumulator = MetricsAccumulator()
@@ -44,6 +49,7 @@ def merger(folder_pattern: str, destination_folder: str, reference_folder : Unio
     chosen_parameters: Optional[dict] = None
     for run_folder in runs_folders:
         os.chdir(str(original_location.joinpath(run_folder)))
+        # Iterate over event files of the run
         for summary_path in glob.glob('**/*.v2',recursive=True):
             summary = tf.data.TFRecordDataset(summary_path)
             for serialized_example in summary:
@@ -114,17 +120,10 @@ def merger(folder_pattern: str, destination_folder: str, reference_folder : Unio
     
     os.chdir(original_location)
     # Delete the individual tensorboard files
-    if clean:
+    if clean == "delete":
         for tensorboard_file in tensorboard_files:
             os.remove(tensorboard_file)
+    elif isinstance(clean,Path):
+        for tensorboard_file in tensorboard_files:
+            os.rename(tensorboard_file,clean.joinpath(Path(tensorboard_file).name))
 
-
-if __name__ == "__main__":
-    import os
-    os.chdir(r"C:\Users\robin\Documents\projets\pokemon_dataset")
-    merger(
-        "runs/*_9ce7656/", 
-        destination_folder="C:/Users/robin/Documents/projets/pokemon_dataset/runs/compiled_test_9ce7656",
-        reference_folder="20211225-23h19min43s_9ce7656",
-        clean=False
-    )
