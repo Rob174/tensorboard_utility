@@ -4,12 +4,17 @@ import os
 import shutil
 from typing import List
 def clean(json_structure: dict,runs_folder: Path):
+    """
+    Clean the run folders not following the json structure.
+    :param json_structure: The json structure. Must be a dict with a pattern as key and an int as value. The int is the number of times each pattern must be seen in each run
+    :param runs_folder: The folder where the runs are.
+    """
     original_location = Path(os.getcwd())
     conflicts = {}
     for run in runs_folder.iterdir():
         os.chdir(str(runs_folder.joinpath(run)))
         for pattern,number in json_structure.items():
-            if len(glob(pattern)) == 0:
+            if len(glob(pattern)) != number:
                 if run not in conflicts:
                     conflicts[run] = []
                 conflicts[run].append(pattern)
