@@ -81,22 +81,10 @@ def merger(folder_pattern: str, destination_folder: str, reference_folder : Unio
         raise Exception("Chosen parameters not found")
 
     # Write the summaries
-    ## Write structure of the parameters
-    # with tf.summary.create_file_writer(destination_folder,filename_suffix="hparams_config.v2").as_default():
-    #     hp.hparams_config(
-    #         hparams=[v for v in parameters_intervals.values()],
-    #         metrics=[
-    #             hp.Metric("final_accuracy_low", display_name='final_accuracy_low'),
-    #             hp.Metric("final_accuracy_high", display_name='final_accuracy_high')
-    #         ],
-    #     )
-    # Write actual parameters chosen
-    # with tf.summary.create_file_writer(destination_folder,filename_suffix="hparams_chosen.v2").as_default():
-    #     hp.hparams(chosen_parameters)
     # Write the metrics
     confidence_intervals = metric_accumulator.compute()
     for folder,data_id in zip(["train","validation"],["tr","val"]):
-        for bound in ["high","low"]:
+        for bound in ["high","low","mean"]:
             path_summary = Path(destination_folder+folder).joinpath(bound).resolve()
             file_writer = tf.summary.create_file_writer(str(path_summary),filename_suffix=f"hparams_metrics_{data_id}.v2")
             with file_writer.as_default():
@@ -107,6 +95,22 @@ def merger(folder_pattern: str, destination_folder: str, reference_folder : Unio
                     for i,metric in enumerate(metric_values.flatten()):
                         tf.summary.scalar(f"{metric_name}", metric, step=i)
                 file_writer.flush()
+    ## Write structure of the parameters
+    with tf.summary.create_file_writer(destination_folder,filename_suffix="hparams_config.v2").as_default():
+        hp.hparams_config(
+            hparams=[v for v in parameters_intervals.values()],
+            metrics=[
+                hp.Metric("final_accuracy_low", display_name='final_accuracy_low'),
+                hp.Metric("final_accuracy", display_name='final_accuracy'),
+                hp.Metric("final_accuracy_high", display_name='final_accuracy_high')
+            ],
+        )
+    # Write actual parameters chosen
+    with tf.summary.create_file_writer(destination_folder,filename_suffix="hparams_chosen.v2").as_default():
+        hp.hparams(chosen_parameters)
+        tf.summary.scalar(f"final_accuracy_low", float(confidence_intervals["val"]["low"]["final_accuracy"].flatten()[0]), step=0)
+        tf.summary.scalar(f"final_accuracy", float(confidence_intervals["val"]["mean"]["final_accuracy"].flatten()[0]), step=0)
+        tf.summary.scalar(f"final_accuracy_high", float(confidence_intervals["val"]["high"]["final_accuracy"].flatten()[0]), step=0)
     
     os.chdir(original_location)
     # Delete the individual tensorboard files
